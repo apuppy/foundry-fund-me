@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
 import {PriceConverter} from "./PriceConverter.sol";
 
-error NotOwner();
+error FundMe__NotOwner();
 
 contract FundMe {
     using PriceConverter for uint256;
@@ -15,9 +16,11 @@ contract FundMe {
         public addressToAmountFounded;
 
     address public immutable i_owner;
+    AggregatorV3Interface private s_priceFeed;
 
-    constructor() {
+    constructor(address priceFeed) {
         i_owner = msg.sender;
+        s_priceFeed = AggregatorV3Interface(priceFeed);
     }
 
     function fund() public payable {
@@ -25,7 +28,7 @@ contract FundMe {
         // Have a minimum $ 5$
         // How do we send ETH to this contract
         require(
-            msg.value.getConversionRate() >= MINIMUM_USD,
+            msg.value.getConversionRate(s_priceFeed) >= MINIMUM_USD,
             "Didn't send enough ETH."
         );
         funders.push(msg.sender);
@@ -54,10 +57,14 @@ contract FundMe {
         require(callSuccess, "Call failed");
     }
 
+    function getVersion() public view returns (uint256) {
+        return s_priceFeed.version();
+    }
+
     modifier onlyOwner() {
         require(msg.sender == i_owner, "Must be owner");
         if (msg.sender != i_owner) {
-            revert NotOwner();
+            revert FundMe__NotOwner();
         }
         _;
     }
